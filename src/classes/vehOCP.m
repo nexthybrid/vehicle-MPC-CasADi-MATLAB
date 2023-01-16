@@ -379,8 +379,7 @@ classdef vehOCP < handle
 
         function add_approx_initial_conditions(obj,varargin)
             %add_approx_initial_conditions Add approximal initial conditions
-            %   add_initial_conditions(obj,v_xb0,v_yb0,px0,py0,r0,psi0,omega_f0,omega_r0,delta0)
-            %   
+            %   add_initial_conditions(obj,v_xb0,v_yb0,px0,py0,r0,psi0,omega_f0,omega_r0,delta0,relaxFactort) 
             %   initial condition for the set of decision variables
             %   selected. In this case, the set is the ego vehicle states.
             %   Inputs:
@@ -405,9 +404,10 @@ classdef vehOCP < handle
                 omega_f0 = varargin{1}(7);
                 omega_r0 = varargin{1}(8);
                 delta0 = varargin{1}(9);
-            elseif (nargin == 10)
-                %
-                Defaults = {2, -0.1, 0.2, 5, 0.1, 0.1, 30,30,0.1};
+            elseif (nargin == 10 || nargin == 11)
+                % obj,v_xb0,v_yb0,px0,py0,r0,psi0,omega_f0,omega_r0,delta0
+                % as inputs
+                Defaults = {2, -0.1, 0.2, 5, 0.1, 0.1, 30,30,0.1,0.02};
                 Defaults(1:nargin-1) = varargin;
                 vx0 = Defaults{1};
                 vy0 = Defaults{2};
@@ -418,19 +418,20 @@ classdef vehOCP < handle
                 omega_f0 = Defaults{7};
                 omega_r0 = Defaults{8};
                 delta0 = Defaults{9};
+                relaxFactor = Defaults{10};
             end
+            factor_l = 1 - relaxFactor;
+            factor_h = 1 + relaxFactor;
 
-
-
-            obj.opti.subject_to(0.9*vx0<=obj.vx(1)<=1.1*vx0);
-            obj.opti.subject_to(0.9*vy0<=obj.vy(1)<=1.1*vy0);
-            obj.opti.subject_to(0.9*px0<=obj.px(1)<=1.1*px0);
-            obj.opti.subject_to(0.9*py0<=obj.py(1)<=1.1*py0);
-            obj.opti.subject_to(0.9*r0<=obj.r(1)<=1.1*r0);
-            obj.opti.subject_to(0.9*psi0<=obj.psi(1)<=1.1*psi0);
-            obj.opti.subject_to(0.9*omega_f0<=obj.omega_f(1)<=1.1*omega_f0);
-            obj.opti.subject_to(0.9*omega_r0<=obj.omega_r(1)<=1.1*omega_r0);
-            obj.opti.subject_to(0.9*delta0<=obj.delta(1)<=1.1*delta0);
+            obj.opti.subject_to(factor_l*vx0<=obj.vx(1)<=factor_h*vx0);
+            obj.opti.subject_to(factor_l*vy0<=obj.vy(1)<=factor_h*vy0);
+            obj.opti.subject_to(factor_l*px0<=obj.px(1)<=factor_h*px0);
+            obj.opti.subject_to(factor_l*py0<=obj.py(1)<=factor_h*py0);
+            obj.opti.subject_to(factor_l*r0<=obj.r(1)<=factor_h*r0);
+            obj.opti.subject_to(factor_l*psi0<=obj.psi(1)<=factor_h*psi0);
+            obj.opti.subject_to(factor_l*omega_f0<=obj.omega_f(1)<=factor_h*omega_f0);
+            obj.opti.subject_to(factor_l*omega_r0<=obj.omega_r(1)<=factor_h*omega_r0);
+            obj.opti.subject_to(factor_l*delta0<=obj.delta(1)<=factor_h*delta0);
         end
 
         function add_terminal_conditions(obj,varargin)

@@ -3,3 +3,4 @@ src/archived/*
 src/utils_private/*
 *.slxc
 *.asv
+*.zip
