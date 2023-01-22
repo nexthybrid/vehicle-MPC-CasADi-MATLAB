@@ -377,6 +377,16 @@ classdef vehOCP < handle
             obj.opti.subject_to(obj.delta(1)==delta0);
         end
 
+        function validate_initial_feasibility(obj, varargin)
+            %validate_initial_feasibility Validate the feasibility of
+            %initial conditions
+            % validate_initial_feasibility(obj) checks the initial
+            % conditions for any potential violation with the problem
+            % constraints, including: path constraints.
+            
+            
+        end
+
         function add_approx_initial_conditions(obj,varargin)
             %add_approx_initial_conditions Add approximal initial conditions
             %   add_initial_conditions(obj,v_xb0,v_yb0,px0,py0,r0,psi0,omega_f0,omega_r0,delta0,relaxFactort) 
@@ -592,6 +602,13 @@ classdef vehOCP < handle
             obj.opti.set_initial(obj.nu, 0) ;
         end
 
+        function validate_initial_guess(obj)
+            %validate_initial_guess Validates the initial guess solution
+            %against constraint violations
+
+
+        end
+
         function warm_start_init(obj,sol)
             %warm_start_init Warm-start the initial condition
             % warm_start_init(obj,sol) warm-starts the intial condition by
@@ -612,6 +629,51 @@ classdef vehOCP < handle
             solver_opt = Defaults{2};
             obj.opti.solver('ipopt',plugin_opt,solver_opt); % set numerical backend
             sol = obj.opti.solve();   % actual solve
+        end
+
+        function fval = fmincon_solve(obj)
+            %fmincon_solve Solve using fmincon
+
+            % Extracting NLP from Opti;
+            f = obj.opti.f;
+            gg = obj.opti.g;
+            x = obj.opti.x;
+            p = obj.opti.p;
+            lbg = obj.opti.lbg;
+            ubg = obj.opti.ubg;
+            
+            x0 = obj.opti.debug.value(x,obj.opti.initial);
+            p  = obj.opti.debug.value(p);
+
+            % Helper function to compute objective and its gradient
+            f = casadi.Function('f',{x,p},{f,gradient(f,x)});
+
+            % Helper function to compute constraint vector, its Jacobian, and bounds
+            gg = casadi.Function('g',{x,p},{gg,jacobian(gg,x),lbg,ubg});
+
+            options = optimoptions('fmincon',...
+                                   'Display','iter',...
+                                   'Algorithm','sqp',...
+                                   'SpecifyObjectiveGradient',true,...
+                                   'SpecifyConstraintGradient',true);
+            
+            [x_opt,fval] = fmincon(@(x) obj_casadi(f,x,p),x0,[],[],[],[],[],[], @(x) nonlin_casadi(gg,x,p),options);
+            obj.opti.set_initial(x, x_opt);
+        end
+
+        function fmincon_plot(obj)
+            %
+            t = linspace(0, obj.opti.value(obj.T,obj.opti.initial), obj.N+1);
+            figure
+            hold on
+            
+            %plot(t,obj.opti.debug.value(speed,obj.opti.initial));
+            %plot(t,obj.opti.debug.value(pos,obj.opti.initial));
+            %plot(t,limit(obj.opti.debug.value(pos,obj.opti.initial)),'r--');
+            %stairs(t(1:end-1),obj.opti.debug.value(obj.U,obj.opti.initial),'k');
+            %xlabel('Time [s]');
+            %legend('speed','pos','speed limit','throttle','Location','northwest')
+
         end
     end
 
@@ -645,117 +707,118 @@ classdef vehOCP < handle
             % finally, turn dx into a column vector
             dx = vertcat(dx1,dx2,dx3,dx4,dx5,dx6,dx7,dx8,dx9);
         end
-%         function dx = vehdyn(x,u)
-%             %f State-space function of the ego vehicle dynamics
-%             %   dx = vehdyn(x,u) Produces the 9 state
-%             %   derivatives of the ego vehicle system:
-%             %   [vx,vy,X_c,Y_c,r,psi,omega_f,omega_r,delta]
-%             %   (Note: X_c,Y_c and px,py are used interchangably)
-%             %   
-%             %   Because the inputs are symbolic variables, the function
-%             %   f is symbolic-variable friendly.
-% 
-%             Defaults = {1700,2385,3,0.9,1e5,5e4,1.3,1.4,0.3,1.5,1.5,2,9.81};
-%             %Defaults(1:nargin-2) = varargin;
-%             m = Defaults{1};
-%             I_z = Defaults{2};
-%             I_omega = Defaults{3};
-%             mu = Defaults{4};
-%             C_kappa = Defaults{5};
-%             C_alpha = Defaults{6};
-%             a = Defaults{7};
-%             b = Defaults{8};
-%             R = Defaults{9};
-%             a_z = Defaults{10};
-%             b_z = Defaults{11};
-%             R_col = Defaults{12};
-%             g = Defaults{13};
-% 
-%             % rename states and controls
-%             vx = x(1);
-%             vy = x(2);
-%             X_c = x(3);
-%             Y_c = x(4);
-%             r = x(5);
-%             psi = x(6);
-%             omega_f = x(7);
-%             omega_r = x(8);
-%             delta = x(9);
-%             nu = u(1);
-%             tau = u(2);
-% 
-%             % intermediate variables based on states
-%             F_zf = b/(a+b)*m*g;
-%             F_zr = a/(a+b)*m*g;
-%             v_xb = cos(psi)*vx + sin(psi)*vy;
-%             v_yb = -sin(psi)*vx + cos(psi)*vy;
-%             V_xft = cos(delta)*v_xb + sin(delta)*(v_yb+a*r);
-%             V_xrt = v_xb;
-% 
-%             kappa_f = (R*omega_f-V_xft) / (V_xft + eps);    % eps prevents divide by zero
-%             kappa_r = (R*omega_r-V_xrt)/ (V_xrt + eps);
-%             alpha_f = atan2(v_yb+r*a,v_xb)-delta;
-%             alpha_r = atan2(v_yb-r*b,v_xb);
-%             %alpha_f = atan((v_yb+r*a)/v_xb)-delta;
-%             %alpha_r = atan((v_yb-r*b)/v_xb);
-% %             flambda_f = 0.5*mu*F_zf*(1+kappa_f)/...
-% %                 sqrt( (C_kappa*kappa_f)^2 + (C_alpha*tan(alpha_f))^2 );
-% %             flambda_r = 0.5*mu*F_zr*(1+kappa_r)/...
-% %                 sqrt( (C_kappa*kappa_r)^2 + (C_alpha*tan(alpha_r))^2 );
-% 
-% %             F_xft = C_kappa * kappa_f / (1+kappa_f) * flambda_f;
-% %             F_xrt = C_kappa * kappa_r / (1+kappa_r) * flambda_r;
-% %             F_yft = C_alpha * tan(alpha_f) / (1+kappa_f) * flambda_f;
-% %             F_yrt = C_alpha * tan(alpha_r) / (1+kappa_r) * flambda_r;
-% %             % for debug, make all F_**t = 0
-% %             F_xft = 0;
-% %             F_xrt = 0;
-% %             F_yft = 0;
-% %             F_yrt = 0;
-% %             % for debug, only use stiffness
-%             F_xft = max(-mu*F_zf, min(mu*F_zf, C_kappa * kappa_f));
-%             F_xrt = max(-mu*F_zr, min(mu*F_zr, C_kappa * kappa_r));
-%             F_yft = max(-mu*F_zf, min(mu*F_zf, -C_alpha * alpha_f));
-%             F_yrt = max(-mu*F_zr, min(mu*F_zr, -C_alpha * alpha_r));
-% %              F_xft = C_kappa * kappa_f;
-% %              F_xrt = C_kappa * kappa_r;
-% %              F_yft = C_alpha * tan(alpha_f);    % maybe a negative sign in front?
-% %              F_yrt = C_alpha * tan(alpha_r);
-% 
-% 
-%             F_xfb = cos(delta)*F_xft - sin(delta)*F_yft;
-%             F_yfb = sin(delta)*F_xft + cos(delta)*F_yft;
-%             F_xrb = F_xrt;
-%             F_yrb = F_yrt;
-% 
-%             F_xf = cos(psi)*F_xfb - sin(psi)*F_yfb;
-%             F_yf = sin(psi)*F_xfb + cos(psi)*F_yfb;
-%             F_xr = cos(psi)*F_xrb - sin(psi)*F_yrb;
-%             F_yr = sin(psi)*F_xrb + cos(psi)*F_yrb;
-% 
-%             % 1 \dot{v_x}
-%             dx1 = 1/m * (F_xf + F_xr);
-%             % 2 \dot{v_y}
-%             dx2 = 1/m * (F_yf + F_yr);
-%             % 3 \dot{X_c}
-%             dx3 = vx;
-%             % 4 \dot{Y_c}
-%             dx4 = vy;
-%             % 5 \dot{r}
-%             dx5 = 1/I_z * (a*F_yft*cos(delta)+a*F_xft*sin(delta)-b*F_yrt);
-%             % 6 \dot{psi}
-%             dx6 = r;
-%             % 7 \dot{omega_f}
-%             dx7 = -1/I_omega * F_xft * R;
-%             % 8 \dot{omega_r}
-%             dx8 = 1/I_omega * (tau - F_xrt*R);
-%             % 9 \dot{delta}
-%             dx9 = nu;
-% 
-% 
-%             % finally, turn dx into a column vector
-%             dx = vertcat(dx1,dx2,dx3,dx4,dx5,dx6,dx7,dx8,dx9);
-%         end
+        
+        function dx = vehdyn_t(x,u)
+            %f State-space function of the ego vehicle dynamics
+            %   dx = vehdyn(x,u) Produces the 9 state
+            %   derivatives of the ego vehicle system:
+            %   [vx,vy,X_c,Y_c,r,psi,omega_f,omega_r,delta]
+            %   (Note: X_c,Y_c and px,py are used interchangably)
+            %   
+            %   Because the inputs are symbolic variables, the function
+            %   f is symbolic-variable friendly.
+
+            Defaults = {1700,2385,3,0.9,1e5,5e4,1.3,1.4,0.3,1.5,1.5,2,9.81};
+            %Defaults(1:nargin-2) = varargin;
+            m = Defaults{1};
+            I_z = Defaults{2};
+            I_omega = Defaults{3};
+            mu = Defaults{4};
+            C_kappa = Defaults{5};
+            C_alpha = Defaults{6};
+            a = Defaults{7};
+            b = Defaults{8};
+            R = Defaults{9};
+            a_z = Defaults{10};
+            b_z = Defaults{11};
+            R_col = Defaults{12};
+            g = Defaults{13};
+
+            % rename states and controls
+            vx = x(1);
+            vy = x(2);
+            X_c = x(3);
+            Y_c = x(4);
+            r = x(5);
+            psi = x(6);
+            omega_f = x(7);
+            omega_r = x(8);
+            delta = x(9);
+            nu = u(1);
+            tau = u(2);
+
+            % intermediate variables based on states
+            F_zf = b/(a+b)*m*g;
+            F_zr = a/(a+b)*m*g;
+            v_xb = cos(psi)*vx + sin(psi)*vy;
+            v_yb = -sin(psi)*vx + cos(psi)*vy;
+            V_xft = cos(delta)*v_xb + sin(delta)*(v_yb+a*r);
+            V_xrt = v_xb;
+
+            kappa_f = (R*omega_f-V_xft) / (V_xft + eps);    % eps prevents divide by zero
+            kappa_r = (R*omega_r-V_xrt)/ (V_xrt + eps);
+            alpha_f = atan2(v_yb+r*a,v_xb)-delta;
+            alpha_r = atan2(v_yb-r*b,v_xb);
+            %alpha_f = atan((v_yb+r*a)/v_xb)-delta;
+            %alpha_r = atan((v_yb-r*b)/v_xb);
+%             flambda_f = 0.5*mu*F_zf*(1+kappa_f)/...
+%                 sqrt( (C_kappa*kappa_f)^2 + (C_alpha*tan(alpha_f))^2 );
+%             flambda_r = 0.5*mu*F_zr*(1+kappa_r)/...
+%                 sqrt( (C_kappa*kappa_r)^2 + (C_alpha*tan(alpha_r))^2 );
+
+%             F_xft = C_kappa * kappa_f / (1+kappa_f) * flambda_f;
+%             F_xrt = C_kappa * kappa_r / (1+kappa_r) * flambda_r;
+%             F_yft = C_alpha * tan(alpha_f) / (1+kappa_f) * flambda_f;
+%             F_yrt = C_alpha * tan(alpha_r) / (1+kappa_r) * flambda_r;
+%             % for debug, make all F_**t = 0
+%             F_xft = 0;
+%             F_xrt = 0;
+%             F_yft = 0;
+%             F_yrt = 0;
+%             % for debug, only use stiffness
+            F_xft = max(-mu*F_zf, min(mu*F_zf, C_kappa * kappa_f));
+            F_xrt = max(-mu*F_zr, min(mu*F_zr, C_kappa * kappa_r));
+            F_yft = max(-mu*F_zf, min(mu*F_zf, -C_alpha * alpha_f));
+            F_yrt = max(-mu*F_zr, min(mu*F_zr, -C_alpha * alpha_r));
+%              F_xft = C_kappa * kappa_f;
+%              F_xrt = C_kappa * kappa_r;
+%              F_yft = C_alpha * tan(alpha_f);    % maybe a negative sign in front?
+%              F_yrt = C_alpha * tan(alpha_r);
+
+
+            F_xfb = cos(delta)*F_xft - sin(delta)*F_yft;
+            F_yfb = sin(delta)*F_xft + cos(delta)*F_yft;
+            F_xrb = F_xrt;
+            F_yrb = F_yrt;
+
+            F_xf = cos(psi)*F_xfb - sin(psi)*F_yfb;
+            F_yf = sin(psi)*F_xfb + cos(psi)*F_yfb;
+            F_xr = cos(psi)*F_xrb - sin(psi)*F_yrb;
+            F_yr = sin(psi)*F_xrb + cos(psi)*F_yrb;
+
+            % 1 \dot{v_x}
+            dx1 = 1/m * (F_xf + F_xr);
+            % 2 \dot{v_y}
+            dx2 = 1/m * (F_yf + F_yr);
+            % 3 \dot{X_c}
+            dx3 = vx;
+            % 4 \dot{Y_c}
+            dx4 = vy;
+            % 5 \dot{r}
+            dx5 = 1/I_z * (a*F_yft*cos(delta)+a*F_xft*sin(delta)-b*F_yrt);
+            % 6 \dot{psi}
+            dx6 = r;
+            % 7 \dot{omega_f}
+            dx7 = -1/I_omega * F_xft * R;
+            % 8 \dot{omega_r}
+            dx8 = 1/I_omega * (tau - F_xrt*R);
+            % 9 \dot{delta}
+            dx9 = nu;
+
+
+            % finally, turn dx into a column vector
+            dx = vertcat(dx1,dx2,dx3,dx4,dx5,dx6,dx7,dx8,dx9);
+        end
 
     function X_next =  step(obj,X,U,varargin)
             %step Update the system one step ahead

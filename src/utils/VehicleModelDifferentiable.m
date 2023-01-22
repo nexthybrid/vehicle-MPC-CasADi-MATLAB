@@ -74,6 +74,7 @@ sDrive = (vw-vl)./(vw+eps); % Driving
 sBrake = (vw-vl)./(vl+eps); % Braking
 relativeVel = vw - vl;
 s = gt_diff(relativeVel,0).*sDrive + (1 - gt_diff(relativeVel,0)).*sBrake; % differentiable
+% s =  sDrive;
 
 % TIRE SLIP ANGLES
 alpha_f = atan2(vcf,vlf);
@@ -90,12 +91,16 @@ Fz = [Fzf; Fzr];
 
 % Longitudinal forces
 Flf = satur(vehicle.frontAxle.Cx*s(1,:), -mi*Fzf, +mi*Fzf);
+% Flf = vehicle.frontAxle.Cx*s(1,:);
 Flr = satur(vehicle.rearAxle.Cx*s(2,:), -mi*Fzr, +mi*Fzr);
+% Flr = vehicle.rearAxle.Cx*s(2,:);
 Fl = 2*[Flf; Flr];
 
 % Conrnering forces
 Fcf = satur(-vehicle.frontAxle.Cy*alpha_f, -mi*Fzf, +mi*Fzf);
+% Fcf = -vehicle.frontAxle.Cy*alpha_f;
 Fcr = satur(-vehicle.rearAxle.Cy*alpha_r, -mi*Fzr, +mi*Fzr);
+% Fcr = -vehicle.rearAxle.Cy*alpha_r;
 Fc = 2*[Fcf; Fcr];
 
 beta = atan2(Fc, Fl);

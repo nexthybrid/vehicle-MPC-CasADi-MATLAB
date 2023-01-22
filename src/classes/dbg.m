@@ -195,6 +195,27 @@ classdef dbg
         end
     end
 
+    methods (Static)
+        function isDifferent = compare_constraints(g1, g2)
+            %compare_constraints Compares the constraints from two OCP
+            %setups
+            % isDifferent = compare_constraints(g1, g2) compares the
+            % constraints from two different casadi.Opti setups. g1, g2 are
+            % the casadi.Opti.g() function outputs from the two OCP
+            % formulations.
+            % Example:
+            % OCP.opti.set_initial(OCP.px,px0_array); % set initial values
+            % g1 = OCP.opti.g();    % store constraints for current OCP
+            % OCP.opti.subject_to(OCP.vx(1)==v_xb0); % add constraint
+            % g2 = OCP.opti.g();    % store new constraints for current OCP
+            % isDifferent = compare_constraints(g1, g2) % compare
+
+
+        end
+
+
+    end
+
     methods (Static)    % Replay related
         function replay(sol, OCP)
             %replay Replays the simulation using current control inputs

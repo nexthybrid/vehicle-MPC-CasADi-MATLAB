@@ -1,6 +1,7 @@
 *.avi
 src/archived/*
 src/utils_private/*
+src/issues/*
 *.slxc
 *.asv
 *.zip
